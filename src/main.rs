@@ -13,7 +13,8 @@ use cortex_m::{
 use cortex_m_rt::entry;
 use microbit::{
     board::Board,
-    hal::gpiote::Gpiote,
+    hal::gpio::{Pin, Input, Floating},
+    hal::gpiote::{Gpiote, GpioteChannel},
     pac::{self, interrupt},
 };
 
@@ -26,19 +27,16 @@ fn main() -> ! {
 
     let gpiote = Gpiote::new(board.GPIOTE);
 
-    let channel0 = gpiote.channel0();
-    channel0
-        .input_pin(&board.buttons.button_a.degrade())
-        .hi_to_lo()
-        .enable_interrupt();
-    channel0.reset_events();
+    let setup_channel = |channel: GpioteChannel, button: &Pin<Input<Floating>>| {
+        channel
+            .input_pin(button)
+            .hi_to_lo()
+            .enable_interrupt();
+        channel.reset_events();
+    };
 
-    let channel1 = gpiote.channel1();
-    channel1
-        .input_pin(&board.buttons.button_b.degrade())
-        .hi_to_lo()
-        .enable_interrupt();
-    channel1.reset_events();
+    setup_channel(gpiote.channel0(), &board.buttons.button_a.degrade());
+    setup_channel(gpiote.channel1(), &board.buttons.button_b.degrade());
 
     cortex_m::interrupt::free(move |cs| {
         /* Enable external GPIO interrupts */
