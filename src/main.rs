@@ -4,12 +4,7 @@
 use rtt_target::{rtt_init_print, rprintln};                                   
 use panic_rtt_target as _;                                                    
 
-use core::cell::RefCell;
-
-use cortex_m::{
-    asm,
-    interrupt::Mutex,
-};
+use cortex_m::asm;
 use cortex_m_rt::entry;
 use microbit::{
     board::Board,
@@ -18,7 +13,9 @@ use microbit::{
     pac::{self, interrupt},
 };
 
-static GPIO: Mutex<RefCell<Option<Gpiote>>> = Mutex::new(RefCell::new(None));
+use critical_section_lock_mut::LockMut;
+
+static GPIO: LockMut<Gpiote> = LockMut::new();
 
 #[entry]
 fn main() -> ! {
@@ -38,17 +35,15 @@ fn main() -> ! {
     setup_channel(gpiote.channel0(), &board.buttons.button_a.degrade());
     setup_channel(gpiote.channel1(), &board.buttons.button_b.degrade());
 
-    cortex_m::interrupt::free(move |cs| {
-        /* Enable external GPIO interrupts */
-        unsafe {
-            pac::NVIC::unmask(pac::Interrupt::GPIOTE);
-        }
-        pac::NVIC::unpend(pac::Interrupt::GPIOTE);
+    GPIO.init(gpiote);
 
-        *GPIO.borrow(cs).borrow_mut() = Some(gpiote);
+    /* Enable external GPIO interrupts */
+    unsafe {
+        pac::NVIC::unmask(pac::Interrupt::GPIOTE);
+    }
+    pac::NVIC::unpend(pac::Interrupt::GPIOTE);
 
-        rprintln!("Welcome to the buttons demo. Press buttons A and/or B for some action.");
-    });
+    rprintln!("Welcome to the buttons demo. Press buttons A and/or B for some action.");
 
     loop {
         asm::wfi();
@@ -61,26 +56,25 @@ fn main() -> ! {
 #[interrupt]
 fn GPIOTE() {
     /* Enter critical section */
-    cortex_m::interrupt::free(|cs| {
+    GPIO.with_lock(|gpiote| {
         rprintln!("interrupt");
-        if let Some(gpiote) = GPIO.borrow(cs).borrow().as_ref() {
-            let buttonapressed = gpiote.channel0().is_event_triggered();
-            let buttonbpressed = gpiote.channel1().is_event_triggered();
 
-            /* Print buttons to the serial console */
-            rprintln!(
-                "button pressed {:?}",
-                match (buttonapressed, buttonbpressed) {
-                    (false, false) => "",
-                    (true, false) => "A",
-                    (false, true) => "B",
-                    (true, true) => "A + B",
-                }
-            );
+        let buttonapressed = gpiote.channel0().is_event_triggered();
+        let buttonbpressed = gpiote.channel1().is_event_triggered();
 
-            /* Clear events */
-            gpiote.channel0().reset_events();
-            gpiote.channel1().reset_events();
-        }
+        /* Print buttons to the serial console */
+        rprintln!(
+            "button pressed {:?}",
+            match (buttonapressed, buttonbpressed) {
+                (false, false) => "",
+                (true, false) => "A",
+                (false, true) => "B",
+                (true, true) => "A + B",
+            }
+        );
+
+        /* Clear events */
+        gpiote.channel0().reset_events();
+        gpiote.channel1().reset_events();
     });
 }
