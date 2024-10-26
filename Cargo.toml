@@ -5,16 +5,13 @@ edition = "2021"
 
 [dependencies]
 cortex-m-rt = "0.7"
-microbit-v2 = "0.13.0"
-rtt-target = "0.4.0"
+microbit-v2 = "0.15"
+panic-rtt-target = "0.1"
+rtt-target = "0.5"
 
 [dependencies.critical-section-lock-mut]
 git = "https://github.com/pdx-cs-rust-embedded/critical-section-lock-mut"
-version = "0.1.2"
-
-[dependencies.panic-rtt-target]
 version = "0.1"
-features = ["cortex-m"]
 
 [dependencies.cortex-m]
 version = "0.7"
